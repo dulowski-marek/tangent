@@ -3,6 +3,10 @@ name = "tangent-core"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "tangent"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
