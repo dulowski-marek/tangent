@@ -33,7 +33,7 @@ audit:
     cargo machete
 
 doc:
-    cargo doc --no-deps -D warnings
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
 ci: check
     cargo build --release
