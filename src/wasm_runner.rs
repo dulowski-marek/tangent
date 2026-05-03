@@ -119,6 +119,12 @@ impl WasmRunner {
         let len = usize::try_from(result_len)
             .map_err(|_| anyhow!("WASM returned negative result_len: {result_len}"))?;
 
+        if ptr == 0 {
+            return Err(anyhow!(
+                "WASM returned null result_ptr for non-empty result_len: {len}"
+            ));
+        }
+
         if len > MAX_RESULT_BYTES {
             return Err(anyhow!(
                 "WASM result_len {len} exceeds maximum allowed {MAX_RESULT_BYTES}"
