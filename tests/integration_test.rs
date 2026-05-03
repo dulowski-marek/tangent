@@ -142,3 +142,58 @@ fn generate_usecase_chains_reader_deserializer_renderer_writer() {
     assert_eq!(outputs[0].filename, "Foo.ts");
     assert_eq!(outputs[0].content, "export class Foo {}");
 }
+
+// --- End-to-end: real WASM + tangent binary ---
+
+#[test]
+fn e2e_example_module_receives_config_and_writes_output() {
+    let module_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/example-module");
+    let wasm_path = format!(
+        "{module_dir}/target/wasm32-unknown-unknown/release/tangent_example.wasm"
+    );
+    assert!(
+        std::path::Path::new(&wasm_path).exists(),
+        "example WASM not built — run `just test` instead of `cargo test` directly"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let output_dir = dir.path().join("out");
+
+    let config_yaml = format!(
+        "output: {}\nmodules:\n  - path: {}\n    config:\n      greeting: hello-from-test\n",
+        output_dir.display(),
+        wasm_path,
+    );
+    let config_path = dir.path().join("tangent.yaml");
+    fs::write(&config_path, &config_yaml).unwrap();
+
+    let tangent_bin = env!("CARGO_BIN_EXE_tangent");
+    let output = std::process::Command::new(tangent_bin)
+        .arg("generate")
+        .current_dir(dir.path())
+        .output()
+        .expect("failed to run tangent binary");
+
+    assert!(
+        output.status.success(),
+        "tangent generate failed:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    // The example module echoes config into the file content
+    let generated_file = output_dir.join("src/Generated.ts");
+    assert!(generated_file.exists(), "Generated.ts was not created");
+    let content = fs::read_to_string(&generated_file).unwrap();
+    assert!(
+        content.contains("hello-from-test"),
+        "generated file should contain config value, got:\n{content}"
+    );
+
+    // Lockfile records the path
+    let lock: Value = serde_json::from_str(
+        &fs::read_to_string(output_dir.join(".tangent.lock")).unwrap()
+    ).unwrap();
+    let generated = lock["generated"].as_array().unwrap();
+    assert!(generated.iter().any(|p| p.as_str().unwrap().ends_with("Generated.ts")));
+}
