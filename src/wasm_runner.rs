@@ -35,10 +35,10 @@ impl WasmRunner {
             let engine = self.engine.clone();
             std::thread::spawn(move || {
                 for _ in 0..=TIMEOUT_SECS {
+                    std::thread::park_timeout(std::time::Duration::from_secs(1));
                     if done.load(Ordering::Relaxed) {
                         break;
                     }
-                    std::thread::sleep(std::time::Duration::from_secs(1));
                     engine.increment_epoch();
                 }
             })
@@ -47,6 +47,7 @@ impl WasmRunner {
         let result = self.run(config_bytes, config_len);
 
         done.store(true, Ordering::Relaxed);
+        ticker.thread().unpark();
         let _ = ticker.join();
 
         result
