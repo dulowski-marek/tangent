@@ -1,7 +1,8 @@
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::fs;
 use tangent_core::{
+    config::{Config, ModuleConfig},
     filesystem_reader::FilesystemReader,
     filesystem_writer::FilesystemWriter,
     generate::GenerateUsecase,
@@ -175,13 +176,15 @@ fn e2e_example_module_receives_config_and_writes_output() {
     let dir = tempfile::tempdir().unwrap();
     let output_dir = dir.path().join("out");
 
-    let config_yaml = format!(
-        "output: {}\nmodules:\n  - path: {}\n    config:\n      greeting: hello-from-test\n",
-        output_dir.display(),
-        wasm_path,
-    );
+    let config = Config {
+        output: output_dir.to_str().unwrap().into(),
+        modules: vec![ModuleConfig {
+            path: wasm_path.clone(),
+            config: [("greeting".into(), json!("hello-from-test"))].into_iter().collect(),
+        }],
+    };
     let config_path = dir.path().join("tangent.yaml");
-    fs::write(&config_path, &config_yaml).unwrap();
+    fs::write(&config_path, serde_yaml::to_string(&config).unwrap()).unwrap();
 
     let tangent_bin = env!("CARGO_BIN_EXE_tangent");
     let output = std::process::Command::new(tangent_bin)
