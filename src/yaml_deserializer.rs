@@ -1,6 +1,6 @@
+use crate::traits::Deserializer;
 use anyhow::Result;
 use serde_json::Value;
-use crate::traits::Deserializer;
 
 pub struct YamlDeserializer;
 
