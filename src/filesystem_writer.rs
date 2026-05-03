@@ -53,6 +53,8 @@ impl FilesystemWriter {
 
 impl Writer for FilesystemWriter {
     fn write(&self, outputs: Vec<Writable>) -> Result<Vec<Writable>> {
+        fs::create_dir_all(&self.root_dir)?;
+
         let prev = self.previously_generated()?;
 
         let next: HashSet<String> = outputs
