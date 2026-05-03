@@ -1,6 +1,7 @@
 use std::ptr::addr_of;
 
-static mut RESULT_BUF: [u8; 65536] = [0u8; 65536];
+const RESULT_BUF_SIZE: usize = 65536;
+static mut RESULT_BUF: [u8; RESULT_BUF_SIZE] = [0u8; RESULT_BUF_SIZE];
 static mut RESULT_LEN: usize = 0;
 
 #[no_mangle]
@@ -23,9 +24,12 @@ pub extern "C" fn render(config_ptr: i32, config_len: i32) {
     let bytes = result.as_bytes();
 
     unsafe {
-        let len = bytes.len().min(65536);
-        RESULT_BUF[..len].copy_from_slice(&bytes[..len]);
-        RESULT_LEN = len;
+        if bytes.len() > RESULT_BUF_SIZE {
+            RESULT_LEN = 0;
+            return;
+        }
+        RESULT_BUF[..bytes.len()].copy_from_slice(bytes);
+        RESULT_LEN = bytes.len();
     }
 }
 
