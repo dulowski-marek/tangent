@@ -1,5 +1,5 @@
 use crate::writable::Writable;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde_json::Value;
 use wasmtime::{Engine, Instance, Linker, Module, Store};
 
@@ -12,7 +12,7 @@ impl WasmRunner {
     pub fn load(path: &str) -> Result<Self> {
         let engine = Engine::default();
         let module = Module::from_file(&engine, path)
-            .with_context(|| format!("loading WASM module: {path}"))?;
+            .map_err(|e| anyhow!("loading WASM module {path}: {e}"))?;
         Ok(Self { engine, module })
     }
 
@@ -22,28 +22,34 @@ impl WasmRunner {
 
         let mut store = Store::new(&self.engine, ());
         let linker = Linker::<()>::new(&self.engine);
-        let instance = linker.instantiate(&mut store, &self.module)?;
+        let instance = linker
+            .instantiate(&mut store, &self.module)
+            .map_err(|e| anyhow!("instantiating WASM module: {e}"))?;
 
         let memory = get_memory(&instance, &mut store)?;
 
         memory
             .write(&mut store, 0, config_bytes)
-            .context("writing config to WASM memory")?;
+            .map_err(|e| anyhow!("writing config to WASM memory: {e}"))?;
 
         let render = instance
             .get_typed_func::<(i32, i32), ()>(&mut store, "render")
-            .context("WASM module must export 'render(i32, i32)'")?;
-        render.call(&mut store, (0, config_bytes.len() as i32))?;
+            .map_err(|e| anyhow!("WASM module must export 'render(i32, i32)': {e}"))?;
+        render
+            .call(&mut store, (0, config_bytes.len() as i32))
+            .map_err(|e| anyhow!("calling render: {e}"))?;
 
         let result_ptr = instance
             .get_typed_func::<(), i32>(&mut store, "result_ptr")
-            .context("WASM module must export 'result_ptr() -> i32'")?
-            .call(&mut store, ())?;
+            .map_err(|e| anyhow!("WASM module must export 'result_ptr() -> i32': {e}"))?
+            .call(&mut store, ())
+            .map_err(|e| anyhow!("calling result_ptr: {e}"))?;
 
         let result_len = instance
             .get_typed_func::<(), i32>(&mut store, "result_len")
-            .context("WASM module must export 'result_len() -> i32'")?
-            .call(&mut store, ())?;
+            .map_err(|e| anyhow!("WASM module must export 'result_len() -> i32': {e}"))?
+            .call(&mut store, ())
+            .map_err(|e| anyhow!("calling result_len: {e}"))?;
 
         if result_len == 0 {
             return Ok(Vec::new());
@@ -52,7 +58,7 @@ impl WasmRunner {
         let mut buf = vec![0u8; result_len as usize];
         memory
             .read(&store, result_ptr as usize, &mut buf)
-            .context("reading result from WASM memory")?;
+            .map_err(|e| anyhow!("reading result from WASM memory: {e}"))?;
 
         serde_json::from_slice(&buf).context("parsing WASM render result")
     }
