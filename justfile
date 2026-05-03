@@ -5,9 +5,6 @@ default: test
 build:
     cargo build
 
-check:
-    cargo check
-
 test: pre-test
     cargo test
 
@@ -21,3 +18,22 @@ build-example-wasm:
 
 install:
     cargo install --path .
+
+check: fmt lint test audit doc
+
+fmt:
+    cargo fmt --check
+
+lint:
+    cargo clippy -- -D warnings
+
+audit:
+    cargo audit
+    cargo deny check
+    cargo machete
+
+doc:
+    cargo doc --no-deps -D warnings
+
+ci: check
+    cargo build --release
