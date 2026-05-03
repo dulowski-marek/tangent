@@ -4,14 +4,14 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const CONFIG_FILENAME: &str = "tangent.yaml";
 
-const CONFIG_TEMPLATE: &str = "\
-# Tangent configuration
+const CONFIG_TEMPLATE: &str = "# Tangent configuration
 
 # Output directory for generated files
 output: src/generated
 
 # Modules to run
-modules: []
+modules:
+  # - path: ./modules/my-module.wasm
 ";
 
 fn main() {
