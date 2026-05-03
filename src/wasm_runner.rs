@@ -9,6 +9,7 @@ use wasmtime::{Engine, Instance, Linker, Module, Store, StoreLimits, StoreLimits
 
 const TIMEOUT_SECS: u64 = 60;
 const MAX_MEMORY_BYTES: usize = 256 * 1024 * 1024; // 256 MB
+const MAX_RESULT_BYTES: usize = 16 * 1024 * 1024; // 16 MB
 
 pub struct WasmRunner {
     engine: Engine,
@@ -106,6 +107,12 @@ impl WasmRunner {
             .map_err(|_| anyhow!("WASM returned negative result_ptr: {result_ptr}"))?;
         let len = usize::try_from(result_len)
             .map_err(|_| anyhow!("WASM returned negative result_len: {result_len}"))?;
+
+        if len > MAX_RESULT_BYTES {
+            return Err(anyhow!(
+                "WASM result_len {len} exceeds maximum allowed {MAX_RESULT_BYTES}"
+            ));
+        }
 
         let mem_size = memory.data_size(&store);
         if ptr.saturating_add(len) > mem_size {
