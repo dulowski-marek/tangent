@@ -1,7 +1,7 @@
 use crate::{
     config::Config, filesystem_writer::FilesystemWriter, traits::Writer, wasm_runner::WasmRunner,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use wasmtime::Engine;
 
 pub fn run(config: Config) -> Result<()> {
@@ -13,9 +13,10 @@ pub fn run(config: Config) -> Result<()> {
 
     let mut outputs = Vec::new();
     for module in &config.modules {
-        let runner = WasmRunner::load(engine.clone(), &module.path)?;
-        let module_config = serde_json::to_value(&module.config)?;
-        outputs.extend(runner.execute(&module_config)?);
+        let ctx = || format!("module {}", module.path);
+        let runner = WasmRunner::load(engine.clone(), &module.path).with_context(ctx)?;
+        let module_config = serde_json::to_value(&module.config).with_context(ctx)?;
+        outputs.extend(runner.execute(&module_config).with_context(ctx)?);
     }
 
     writer.write(outputs)?;
