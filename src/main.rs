@@ -10,8 +10,10 @@ const CONFIG_TEMPLATE: &str = "# Tangent configuration
 output: src/generated
 
 # Modules to run
-modules:
+modules: []
   # - path: ./modules/my-module.wasm
+  #   config:
+  #     key: value
 ";
 
 fn main() {
