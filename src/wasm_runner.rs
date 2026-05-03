@@ -9,8 +9,7 @@ pub struct WasmRunner {
 }
 
 impl WasmRunner {
-    pub fn load(path: &str) -> Result<Self> {
-        let engine = Engine::default();
+    pub fn load(engine: Engine, path: &str) -> Result<Self> {
         let module = Module::from_file(&engine, path)
             .map_err(|e| anyhow!("loading WASM module {path}: {e}"))?;
         Ok(Self { engine, module })
@@ -19,6 +18,8 @@ impl WasmRunner {
     pub fn execute(&self, config: &Value) -> Result<Vec<Writable>> {
         let config_json = serde_json::to_string(config)?;
         let config_bytes = config_json.as_bytes();
+        let config_len = i32::try_from(config_bytes.len())
+            .map_err(|_| anyhow!("config JSON exceeds 2 GB"))?;
 
         let mut store = Store::new(&self.engine, ());
         let linker = Linker::<()>::new(&self.engine);
@@ -36,7 +37,7 @@ impl WasmRunner {
             .get_typed_func::<(i32, i32), ()>(&mut store, "render")
             .map_err(|e| anyhow!("WASM module must export 'render(i32, i32)': {e}"))?;
         render
-            .call(&mut store, (0, config_bytes.len() as i32))
+            .call(&mut store, (0, config_len))
             .map_err(|e| anyhow!("calling render: {e}"))?;
 
         let result_ptr = instance
@@ -55,9 +56,22 @@ impl WasmRunner {
             return Ok(Vec::new());
         }
 
-        let mut buf = vec![0u8; result_len as usize];
+        let ptr = usize::try_from(result_ptr)
+            .map_err(|_| anyhow!("WASM returned negative result_ptr: {result_ptr}"))?;
+        let len = usize::try_from(result_len)
+            .map_err(|_| anyhow!("WASM returned negative result_len: {result_len}"))?;
+
+        let mem_size = memory.data_size(&store);
+        if ptr.saturating_add(len) > mem_size {
+            return Err(anyhow!(
+                "WASM result [{ptr}..{}] exceeds memory size {mem_size}",
+                ptr + len
+            ));
+        }
+
+        let mut buf = vec![0u8; len];
         memory
-            .read(&store, result_ptr as usize, &mut buf)
+            .read(&store, ptr, &mut buf)
             .map_err(|e| anyhow!("reading result from WASM memory: {e}"))?;
 
         serde_json::from_slice(&buf).context("parsing WASM render result")
