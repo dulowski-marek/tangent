@@ -5,9 +5,10 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use wasmtime::{Engine, Instance, Linker, Module, Store};
+use wasmtime::{Engine, Instance, Linker, Module, Store, StoreLimits, StoreLimitsBuilder};
 
 const TIMEOUT_SECS: u64 = 60;
+const MAX_MEMORY_BYTES: usize = 256 * 1024 * 1024; // 256 MB
 
 pub struct WasmRunner {
     engine: Engine,
@@ -51,11 +52,15 @@ impl WasmRunner {
     }
 
     fn run(&self, config_bytes: &[u8], config_len: i32) -> Result<Vec<Writable>> {
-        let mut store = Store::new(&self.engine, ());
+        let limits = StoreLimitsBuilder::new()
+            .memory_size(MAX_MEMORY_BYTES)
+            .build();
+        let mut store = Store::new(&self.engine, limits);
+        store.limiter(|state| state as &mut dyn wasmtime::ResourceLimiter);
         store.set_epoch_deadline(TIMEOUT_SECS);
         store.epoch_deadline_trap();
 
-        let linker = Linker::<()>::new(&self.engine);
+        let linker = Linker::<StoreLimits>::new(&self.engine);
         let instance = linker
             .instantiate(&mut store, &self.module)
             .map_err(|e| anyhow!("instantiating WASM module: {e}"))?;
@@ -119,7 +124,7 @@ impl WasmRunner {
     }
 }
 
-fn get_memory(instance: &Instance, store: &mut Store<()>) -> Result<wasmtime::Memory> {
+fn get_memory<T>(instance: &Instance, store: &mut Store<T>) -> Result<wasmtime::Memory> {
     instance
         .get_export(store, "memory")
         .and_then(|e| e.into_memory())
