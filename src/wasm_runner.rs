@@ -18,8 +18,8 @@ impl WasmRunner {
     pub fn execute(&self, config: &Value) -> Result<Vec<Writable>> {
         let config_json = serde_json::to_string(config)?;
         let config_bytes = config_json.as_bytes();
-        let config_len = i32::try_from(config_bytes.len())
-            .map_err(|_| anyhow!("config JSON exceeds 2 GB"))?;
+        let config_len =
+            i32::try_from(config_bytes.len()).map_err(|_| anyhow!("config JSON exceeds 2 GB"))?;
 
         let mut store = Store::new(&self.engine, ());
         let linker = Linker::<()>::new(&self.engine);

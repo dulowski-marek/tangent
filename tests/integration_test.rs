@@ -180,7 +180,9 @@ fn e2e_example_module_receives_config_and_writes_output() {
         output: output_dir.to_str().unwrap().into(),
         modules: vec![ModuleConfig {
             path: wasm_path.clone(),
-            config: [("greeting".into(), json!("hello-from-test"))].into_iter().collect(),
+            config: [("greeting".into(), json!("hello-from-test"))]
+                .into_iter()
+                .collect(),
         }],
     };
     let config_path = dir.path().join("tangent.yaml");
