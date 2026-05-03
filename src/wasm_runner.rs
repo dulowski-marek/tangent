@@ -69,13 +69,21 @@ impl WasmRunner {
 
         let memory = get_memory(&instance, &mut store)?;
 
-        let config_buf_ptr = instance
-            .get_typed_func::<(), i32>(&mut store, "config_ptr")
-            .map_err(|e| anyhow!("WASM module must export 'config_ptr() -> i32': {e}"))?
-            .call(&mut store, ())
-            .map_err(|e| anyhow!("calling config_ptr: {e}"))?;
-        let config_offset = usize::try_from(config_buf_ptr)
-            .map_err(|_| anyhow!("WASM returned negative config_ptr: {config_buf_ptr}"))?;
+        let alloc = instance
+            .get_typed_func::<i32, i32>(&mut store, "alloc")
+            .map_err(|e| anyhow!("WASM module must export 'alloc(i32) -> i32': {e}"))?;
+        let dealloc = instance
+            .get_typed_func::<(i32, i32), ()>(&mut store, "dealloc")
+            .map_err(|e| anyhow!("WASM module must export 'dealloc(i32, i32)': {e}"))?;
+
+        let config_ptr = alloc
+            .call(&mut store, config_len)
+            .map_err(|e| anyhow!("allocating config buffer: {e}"))?;
+        let config_offset = usize::try_from(config_ptr)
+            .map_err(|_| anyhow!("alloc returned non-positive ptr: {config_ptr}"))?;
+        if config_offset == 0 {
+            return Err(anyhow!("alloc({config_len}) returned null"));
+        }
 
         memory
             .write(&mut store, config_offset, config_bytes)
@@ -84,9 +92,11 @@ impl WasmRunner {
         let render = instance
             .get_typed_func::<(i32, i32), ()>(&mut store, "render")
             .map_err(|e| anyhow!("WASM module must export 'render(i32, i32)': {e}"))?;
-        render
-            .call(&mut store, (config_buf_ptr, config_len))
-            .map_err(|e| anyhow!("calling render: {e}"))?;
+        let render_result = render.call(&mut store, (config_ptr, config_len));
+
+        // Free the config buffer regardless of render outcome.
+        let _ = dealloc.call(&mut store, (config_ptr, config_len));
+        render_result.map_err(|e| anyhow!("calling render: {e}"))?;
 
         let result_ptr = instance
             .get_typed_func::<(), i32>(&mut store, "result_ptr")
@@ -127,6 +137,9 @@ impl WasmRunner {
         memory
             .read(&store, ptr, &mut buf)
             .map_err(|e| anyhow!("reading result from WASM memory: {e}"))?;
+
+        // Free the result buffer in the guest now that we've copied it out.
+        let _ = dealloc.call(&mut store, (result_ptr, result_len));
 
         serde_json::from_slice(&buf).context("parsing WASM render result")
     }

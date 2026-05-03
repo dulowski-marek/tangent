@@ -1,16 +1,28 @@
-use std::ptr::addr_of;
+use std::alloc::{alloc as rust_alloc, dealloc as rust_dealloc, Layout};
 
-const CONFIG_BUF_SIZE: usize = 65536;
-const RESULT_BUF_SIZE: usize = 65536;
-
-static mut CONFIG_BUF: [u8; CONFIG_BUF_SIZE] = [0u8; CONFIG_BUF_SIZE];
-static mut RESULT_BUF: [u8; RESULT_BUF_SIZE] = [0u8; RESULT_BUF_SIZE];
-static mut RESULT_LEN: usize = 0;
+static mut RESULT_PTR: i32 = 0;
+static mut RESULT_LEN: i32 = 0;
 
 #[no_mangle]
-pub extern "C" fn config_ptr() -> i32 {
-    #[allow(unused_unsafe)]
-    unsafe { addr_of!(CONFIG_BUF) as i32 }
+pub extern "C" fn alloc(size: i32) -> i32 {
+    if size <= 0 {
+        return 0;
+    }
+    unsafe {
+        let layout = Layout::from_size_align_unchecked(size as usize, 1);
+        rust_alloc(layout) as i32
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn dealloc(ptr: i32, size: i32) {
+    if ptr == 0 || size <= 0 {
+        return;
+    }
+    unsafe {
+        let layout = Layout::from_size_align_unchecked(size as usize, 1);
+        rust_dealloc(ptr as *mut u8, layout);
+    }
 }
 
 #[no_mangle]
@@ -20,7 +32,8 @@ pub extern "C" fn render(config_ptr: i32, config_len: i32) {
         std::str::from_utf8(slice).unwrap_or("{}")
     };
 
-    let config: serde_json::Value = serde_json::from_str(config_json).unwrap_or(serde_json::Value::Null);
+    let config: serde_json::Value =
+        serde_json::from_str(config_json).unwrap_or(serde_json::Value::Null);
     let content = format!("// generated\n// config: {}", config);
 
     let writables = serde_json::json!([{
@@ -30,25 +43,22 @@ pub extern "C" fn render(config_ptr: i32, config_len: i32) {
     }]);
 
     let result = serde_json::to_string(&writables).unwrap_or_else(|_| "[]".into());
-    let bytes = result.as_bytes();
+    let bytes = result.into_bytes().into_boxed_slice();
+    let len = bytes.len() as i32;
+    let ptr = Box::leak(bytes).as_ptr() as i32;
 
     unsafe {
-        if bytes.len() > RESULT_BUF_SIZE {
-            RESULT_LEN = 0;
-            return;
-        }
-        RESULT_BUF[..bytes.len()].copy_from_slice(bytes);
-        RESULT_LEN = bytes.len();
+        RESULT_PTR = ptr;
+        RESULT_LEN = len;
     }
 }
 
 #[no_mangle]
 pub extern "C" fn result_ptr() -> i32 {
-    #[allow(unused_unsafe)]
-    unsafe { addr_of!(RESULT_BUF) as i32 }
+    unsafe { RESULT_PTR }
 }
 
 #[no_mangle]
 pub extern "C" fn result_len() -> i32 {
-    unsafe { RESULT_LEN as i32 }
+    unsafe { RESULT_LEN }
 }
