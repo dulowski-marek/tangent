@@ -1,5 +1,7 @@
+use crate::{
+    config::Config, filesystem_writer::FilesystemWriter, traits::Writer, wasm_runner::WasmRunner,
+};
 use anyhow::Result;
-use crate::{config::Config, filesystem_writer::FilesystemWriter, traits::Writer, wasm_runner::WasmRunner};
 
 pub fn run(config: Config) -> Result<()> {
     let writer = FilesystemWriter::new(&config.output);

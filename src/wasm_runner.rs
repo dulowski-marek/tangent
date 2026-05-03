@@ -1,7 +1,7 @@
+use crate::writable::Writable;
 use anyhow::{Context, Result};
 use serde_json::Value;
 use wasmtime::{Engine, Instance, Linker, Module, Store};
-use crate::writable::Writable;
 
 pub struct WasmRunner {
     engine: Engine,
@@ -26,7 +26,8 @@ impl WasmRunner {
 
         let memory = get_memory(&instance, &mut store)?;
 
-        memory.write(&mut store, 0, config_bytes)
+        memory
+            .write(&mut store, 0, config_bytes)
             .context("writing config to WASM memory")?;
 
         let render = instance
@@ -49,7 +50,8 @@ impl WasmRunner {
         }
 
         let mut buf = vec![0u8; result_len as usize];
-        memory.read(&store, result_ptr as usize, &mut buf)
+        memory
+            .read(&store, result_ptr as usize, &mut buf)
             .context("reading result from WASM memory")?;
 
         serde_json::from_slice(&buf).context("parsing WASM render result")

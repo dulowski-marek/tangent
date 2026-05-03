@@ -1,6 +1,6 @@
+use crate::traits::Reader;
 use anyhow::Result;
 use std::fs;
-use crate::traits::Reader;
 
 pub struct FilesystemReader {
     path: String,

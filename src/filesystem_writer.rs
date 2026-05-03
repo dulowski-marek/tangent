@@ -1,7 +1,7 @@
+use crate::{traits::Writer, writable::Writable};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fs, io::ErrorKind, path::PathBuf};
-use crate::{traits::Writer, writable::Writable};
 
 const LOCKFILE_VERSION: u32 = 1;
 const LOCKFILE_NAME: &str = ".tangent.lock";
@@ -18,11 +18,15 @@ pub struct FilesystemWriter {
 
 impl FilesystemWriter {
     pub fn new(root_dir: impl Into<String>) -> Self {
-        Self { root_dir: root_dir.into() }
+        Self {
+            root_dir: root_dir.into(),
+        }
     }
 
     fn file_path(&self, output: &Writable) -> PathBuf {
-        PathBuf::from(&self.root_dir).join(&output.path).join(&output.filename)
+        PathBuf::from(&self.root_dir)
+            .join(&output.path)
+            .join(&output.filename)
     }
 
     fn dir(&self, output: &Writable) -> PathBuf {
@@ -75,7 +79,10 @@ impl Writer for FilesystemWriter {
             written.push(file.to_string_lossy().into_owned());
         }
 
-        let lf = Lockfile { version: LOCKFILE_VERSION, generated: written };
+        let lf = Lockfile {
+            version: LOCKFILE_VERSION,
+            generated: written,
+        };
         let data = serde_json::to_string_pretty(&lf)?;
         fs::write(self.lockfile_path(), data)?;
 

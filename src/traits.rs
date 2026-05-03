@@ -1,6 +1,6 @@
+use crate::writable::Writable;
 use anyhow::Result;
 use serde_json::Value;
-use crate::writable::Writable;
 
 pub trait Reader {
     fn read(&self) -> Result<String>;

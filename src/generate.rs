@@ -1,8 +1,8 @@
-use anyhow::Result;
 use crate::{
     traits::{Deserializer, Reader, Renderer, Writer},
     writable::Writable,
 };
+use anyhow::Result;
 
 pub struct GenerateUsecase<R, D, W> {
     reader: R,
@@ -13,7 +13,12 @@ pub struct GenerateUsecase<R, D, W> {
 
 impl<R: Reader, D: Deserializer, W: Writer> GenerateUsecase<R, D, W> {
     pub fn new(reader: R, deserializer: D, renderers: Vec<Box<dyn Renderer>>, writer: W) -> Self {
-        Self { reader, deserializer, renderers, writer }
+        Self {
+            reader,
+            deserializer,
+            renderers,
+            writer,
+        }
     }
 
     pub fn execute(&self) -> Result<Vec<Writable>> {
