@@ -1,8 +1,17 @@
 use std::ptr::addr_of;
 
+const CONFIG_BUF_SIZE: usize = 65536;
 const RESULT_BUF_SIZE: usize = 65536;
+
+static mut CONFIG_BUF: [u8; CONFIG_BUF_SIZE] = [0u8; CONFIG_BUF_SIZE];
 static mut RESULT_BUF: [u8; RESULT_BUF_SIZE] = [0u8; RESULT_BUF_SIZE];
 static mut RESULT_LEN: usize = 0;
+
+#[no_mangle]
+pub extern "C" fn config_ptr() -> i32 {
+    #[allow(unused_unsafe)]
+    unsafe { addr_of!(CONFIG_BUF) as i32 }
+}
 
 #[no_mangle]
 pub extern "C" fn render(config_ptr: i32, config_len: i32) {

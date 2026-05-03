@@ -42,7 +42,7 @@ impl WasmRunner {
             })
         };
 
-        let result = self.run(&config_bytes, config_len);
+        let result = self.run(config_bytes, config_len);
 
         done.store(true, Ordering::Relaxed);
         let _ = ticker.join();
@@ -62,15 +62,23 @@ impl WasmRunner {
 
         let memory = get_memory(&instance, &mut store)?;
 
+        let config_buf_ptr = instance
+            .get_typed_func::<(), i32>(&mut store, "config_ptr")
+            .map_err(|e| anyhow!("WASM module must export 'config_ptr() -> i32': {e}"))?
+            .call(&mut store, ())
+            .map_err(|e| anyhow!("calling config_ptr: {e}"))?;
+        let config_offset = usize::try_from(config_buf_ptr)
+            .map_err(|_| anyhow!("WASM returned negative config_ptr: {config_buf_ptr}"))?;
+
         memory
-            .write(&mut store, 0, config_bytes)
+            .write(&mut store, config_offset, config_bytes)
             .map_err(|e| anyhow!("writing config to WASM memory: {e}"))?;
 
         let render = instance
             .get_typed_func::<(i32, i32), ()>(&mut store, "render")
             .map_err(|e| anyhow!("WASM module must export 'render(i32, i32)': {e}"))?;
         render
-            .call(&mut store, (0, config_len))
+            .call(&mut store, (config_buf_ptr, config_len))
             .map_err(|e| anyhow!("calling render: {e}"))?;
 
         let result_ptr = instance
