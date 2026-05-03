@@ -170,7 +170,7 @@ fn e2e_example_module_receives_config_and_writes_output() {
         format!("{module_dir}/target/wasm32-unknown-unknown/release/tangent_example.wasm");
     assert!(
         std::path::Path::new(&wasm_path).exists(),
-        "Example WASM not built.\nRun `cargo build --manifest-path example-module/Cargo.toml --target wasm32-unknown-unknown` --release"
+        "Example WASM not built.\nRun `cargo build --manifest-path example-module/Cargo.toml --target wasm32-unknown-unknown --release`"
     );
 
     let dir = tempfile::tempdir().unwrap();
