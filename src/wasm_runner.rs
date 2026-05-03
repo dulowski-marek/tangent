@@ -1,7 +1,13 @@
 use crate::writable::Writable;
 use anyhow::{anyhow, Context, Result};
 use serde_json::Value;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use wasmtime::{Engine, Instance, Linker, Module, Store};
+
+const TIMEOUT_SECS: u64 = 60;
 
 pub struct WasmRunner {
     engine: Engine,
@@ -21,7 +27,34 @@ impl WasmRunner {
         let config_len =
             i32::try_from(config_bytes.len()).map_err(|_| anyhow!("config JSON exceeds 2 GB"))?;
 
+        let done = Arc::new(AtomicBool::new(false));
+        let ticker = {
+            let done = done.clone();
+            let engine = self.engine.clone();
+            std::thread::spawn(move || {
+                for _ in 0..=TIMEOUT_SECS {
+                    if done.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    engine.increment_epoch();
+                }
+            })
+        };
+
+        let result = self.run(&config_bytes, config_len);
+
+        done.store(true, Ordering::Relaxed);
+        let _ = ticker.join();
+
+        result
+    }
+
+    fn run(&self, config_bytes: &[u8], config_len: i32) -> Result<Vec<Writable>> {
         let mut store = Store::new(&self.engine, ());
+        store.set_epoch_deadline(TIMEOUT_SECS);
+        store.epoch_deadline_trap();
+
         let linker = Linker::<()>::new(&self.engine);
         let instance = linker
             .instantiate(&mut store, &self.module)
